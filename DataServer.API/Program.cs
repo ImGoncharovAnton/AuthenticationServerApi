@@ -29,7 +29,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         ValidAudience = "https://localhost:7164",
         ValidateIssuerSigningKey = true,
         ValidateAudience = true,
-        ValidateIssuer = true
+        ValidateIssuer = true,
+        ClockSkew = TimeSpan.Zero
     };
 });
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
