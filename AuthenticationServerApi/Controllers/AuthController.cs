@@ -1,4 +1,5 @@
-﻿using AuthenticationServerApi.Models;
+﻿using System.Security.Claims;
+using AuthenticationServerApi.Models;
 using AuthenticationServerApi.Models.Requests;
 using AuthenticationServerApi.Models.Responses;
 using AuthenticationServerApi.Services.Authenticators;
@@ -7,6 +8,7 @@ using AuthenticationServerApi.Services.RefreshTokenRepositories;
 using AuthenticationServerApi.Services.TokenGenerators;
 using AuthenticationServerApi.Services.TokenValidators;
 using AuthenticationServerApi.Services.UserRepositories;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthenticationServerApi.Controllers
@@ -101,6 +103,20 @@ namespace AuthenticationServerApi.Controllers
 
             AuthenticatedUserResponse response = await _authenticator.Authenticate(user);
             return Ok(response);
+        }
+
+        [Authorize]
+        [HttpDelete("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            string rawUserId = HttpContext.User.FindFirstValue("id");
+
+            if (!Guid.TryParse(rawUserId, out Guid userId))
+                return Unauthorized();
+
+            await _refreshTokenRepository.DeleteAll(userId);
+
+            return NoContent();
         }
 
         private IActionResult BadRequestModelState()

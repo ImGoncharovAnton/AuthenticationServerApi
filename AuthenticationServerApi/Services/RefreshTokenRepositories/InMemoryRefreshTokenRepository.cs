@@ -27,5 +27,12 @@ namespace AuthenticationServerApi.Services.RefreshTokenRepositories
 
             return Task.CompletedTask;
         }
+
+        public Task DeleteAll(Guid userId)
+        {
+            _refreshTokens.RemoveAll(r => r.UserId == userId);
+
+            return Task.CompletedTask;
+        }
     }
 }
