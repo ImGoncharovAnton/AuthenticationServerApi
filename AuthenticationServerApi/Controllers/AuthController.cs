@@ -3,28 +3,24 @@ using AuthenticationServerApi.Models;
 using AuthenticationServerApi.Models.Requests;
 using AuthenticationServerApi.Models.Responses;
 using AuthenticationServerApi.Services.Authenticators;
-using AuthenticationServerApi.Services.PasswordHashers;
 using AuthenticationServerApi.Services.RefreshTokenRepositories;
-using AuthenticationServerApi.Services.TokenGenerators;
 using AuthenticationServerApi.Services.TokenValidators;
-using AuthenticationServerApi.Services.UserRepositories;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthenticationServerApi.Controllers
 {
     public class AuthController : Controller
     {
-        private readonly IUserRepository _userRepository;
-        private readonly IPasswordHasher _passwordHasher;
+        private readonly UserManager<User> _userRepository;
         private readonly Authenticator _authenticator;
         private readonly RefreshTokenValidator _refreshTokenValidator;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
 
-        public AuthController(IUserRepository userRepository, IPasswordHasher passwordHasher, RefreshTokenValidator refreshTokenValidator, IRefreshTokenRepository refreshTokenRepository, Authenticator authenticator)
+        public AuthController(UserManager<User> userRepository, RefreshTokenValidator refreshTokenValidator, IRefreshTokenRepository refreshTokenRepository, Authenticator authenticator)
         {
             _userRepository = userRepository;
-            _passwordHasher = passwordHasher;
             _refreshTokenValidator = refreshTokenValidator;
             _refreshTokenRepository = refreshTokenRepository;
             _authenticator = authenticator;
@@ -36,26 +32,31 @@ namespace AuthenticationServerApi.Controllers
             if (!ModelState.IsValid)
                 return BadRequestModelState();
 
-                if (registerRequest.Password != registerRequest.ConfirmPassword)
+            if (registerRequest.Password != registerRequest.ConfirmPassword)
                 return BadRequest(new ErrorResponse("Password does not match confirm password"));
-            User existingUserByEmail = await _userRepository.GetByEmail(registerRequest.Email);
-            if (existingUserByEmail != null)
-                return Conflict(new ErrorResponse("Email already exists"));
-
-            User existingUserByUsername = await _userRepository.GetByUsername(registerRequest.Username);
-            if (existingUserByUsername != null)
-                return Conflict(new ErrorResponse("Username already exists"));
-
-            string passwordHash = _passwordHasher.HashPassword(registerRequest.Password);
+            
+        
             User registrationUser = new User()
             {
                 Email = registerRequest.Email,
-                Username = registerRequest.Username,
-                PasswordHash = passwordHash
+                UserName = registerRequest.Username
             };
 
-            await _userRepository.Create(registrationUser);
-
+           IdentityResult result = await _userRepository.CreateAsync(registrationUser, registerRequest.Password);
+           if (!result.Succeeded)
+           {
+               var errorDescriber = new IdentityErrorDescriber();
+               var primaryError = result.Errors.FirstOrDefault();
+               
+               switch (primaryError.Code)
+               {
+                   case nameof(errorDescriber.DuplicateEmail):
+                       return Conflict(new ErrorResponse("Email already exists"));
+                   case nameof(errorDescriber.DuplicateUserName):
+                       return Conflict(new ErrorResponse("Username already exists"));
+               }
+           }
+           
             return Ok();
 
         }
@@ -66,11 +67,11 @@ namespace AuthenticationServerApi.Controllers
             if (!ModelState.IsValid)
                 return BadRequestModelState();
 
-            User user = await _userRepository.GetByUsername(loginRequest.Username);
+            User user = await _userRepository.FindByNameAsync(loginRequest.Username);
             if (user == null)
                 return Unauthorized();
 
-            bool isCorrectPassword = _passwordHasher.VerifyPassword(loginRequest.Password, user.PasswordHash);
+            bool isCorrectPassword = await _userRepository.CheckPasswordAsync(user, loginRequest.Password);
             if(!isCorrectPassword)
                 return Unauthorized();
 
@@ -96,7 +97,7 @@ namespace AuthenticationServerApi.Controllers
 
             await _refreshTokenRepository.Delete(refreshTokenDTO.Id);
 
-            User user = await _userRepository.GetById(refreshTokenDTO.UserId);
+            User user = await _userRepository.FindByIdAsync(refreshTokenDTO.UserId.ToString());
             if(user == null)
                 return NotFound(new ErrorResponse("User not found"));
 

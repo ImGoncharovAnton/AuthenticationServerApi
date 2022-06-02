@@ -1,10 +1,9 @@
-﻿namespace AuthenticationServerApi.Models
+﻿using Microsoft.AspNetCore.Identity;
+
+namespace AuthenticationServerApi.Models
 {
-    public class User
+    public class User : IdentityUser<Guid>
     {
-        public Guid Id { get; set; }
-        public string Email { get; set; }
-        public string Username { get; set; }
-        public string PasswordHash { get; set; }
+      
     }
 }
